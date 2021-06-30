@@ -1,0 +1,20 @@
+p = 3
+
+fn test(start, fin) {
+
+	fn zot(x, y) {
+	   	fn zaz(r) {
+		   return p + x * r
+		}
+
+		return x * y + zaz(y)
+	}
+
+	for (i=start; i<=fin; i=i+1) {
+		print(zot(i, p))
+	}
+
+	print(p * 1000)
+}
+
+test(5, 10)

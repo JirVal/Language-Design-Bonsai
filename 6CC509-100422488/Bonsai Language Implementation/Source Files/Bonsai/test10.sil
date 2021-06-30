@@ -1,0 +1,4 @@
+test[] = [true, "a", 3, 4, 5]
+print(test)
+print(test[3])
+

@@ -1,0 +1,12 @@
+java -jar "Sili Language.jar" < test01.sil
+java -jar "Sili Language.jar" < test02.sil
+java -jar "Sili Language.jar" < test03.sil
+java -jar "Sili Language.jar" < test04.sil
+java -jar "Sili Language.jar" < test05.sil
+java -jar "Sili Language.jar" < test06.sil
+java -jar "Sili Language.jar" < test07.sil
+java -jar "Sili Language.jar" < test08.sil
+java -jar "Sili Language.jar" < test09.sil
+java -jar "Sili Language.jar" < test10.sil
+java -jar "Sili Language.jar" < test11.sil
+java -jar "Sili Language.jar" < test-math.sil

@@ -1,0 +1,570 @@
+/*
+ * A simple expression parser and evaluator
+ *
+ */
+
+options {
+  LOOKAHEAD = 1;
+  CHOICE_AMBIGUITY_CHECK = 2;
+  OTHER_AMBIGUITY_CHECK = 1;
+  STATIC = false;
+  DEBUG_PARSER = false;
+  DEBUG_LOOKAHEAD = false;
+  DEBUG_TOKEN_MANAGER = false;
+  ERROR_REPORTING = true;
+  JAVA_UNICODE_ESCAPE = false;
+  UNICODE_INPUT = false;
+  IGNORE_CASE = false;
+  USER_TOKEN_MANAGER = false;
+  USER_CHAR_STREAM = false;
+  BUILD_PARSER = true;
+  BUILD_TOKEN_MANAGER = true;
+  SANITY_CHECK = true;
+  FORCE_LA_CHECK = false;
+  MULTI = true;
+  VISITOR = true;
+  JDK_VERSION = "1.8";
+  NODE_DEFAULT_VOID = true;
+  NODE_EXTENDS = "uk.ac.derby.ldi.sili2.interpreter.BaseASTNode";
+  NODE_PACKAGE = "uk.ac.derby.ldi.sili2.parser.ast";
+  JJTREE_OUTPUT_DIRECTORY = "ast";
+}
+
+PARSER_BEGIN(Sili)
+package uk.ac.derby.ldi.sili2.parser.ast;
+public class Sili {}
+PARSER_END(Sili)
+
+/*
+ *
+ * Lexer definitions
+ *
+ */
+
+SKIP : /* WHITE SPACE */
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+| "\f"
+}
+
+SPECIAL_TOKEN : /* COMMENTS */
+{
+  <SINGLE_LINE_COMMENT: "//" (~["\n","\r"])* ("\n"|"\r"|"\r\n")>
+| <FORMAL_COMMENT: "/**" (~["*"])* "*" ("*" | (~["*","/"] (~["*"])* "*"))* "/">
+| <MULTI_LINE_COMMENT: "/*" (~["*"])* "*" ("*" | (~["*","/"] (~["*"])* "*"))* "/">
+}
+
+TOKEN [IGNORE_CASE] : /* RESERVED WORDS AND LITERALS */
+{
+  < IF: "IF" >
+| < ELSE: "ELSE" >
+| < FOR: "FOR" >
+| < PRINT: "PRINT" >
+| < FN: "FN" >
+| < RETURN: "RETURN" >
+| < OR: "OR" >
+| < AND: "AND" >
+| < NOT: "NOT" >
+| < TRUE: "TRUE" >
+| < FALSE: "FALSE" >
+| < WHILE: "WHILE" >
+| < EXIT: "EXIT" >
+}
+
+TOKEN [IGNORE_CASE]: /* MATH OPERATIONS */
+{
+  < CEIL: "CEIL" >
+| < SQRT: "SQRT" >
+| < ABS: "ABS" >
+| < FACTORIAL: "FACTORIAL" >
+| < FLOOR: "FLOOR" >
+| < POWER: "POW" >
+| < SINE: "SIN" >
+| < COSINE: "COS" >
+| < TANGENT: "TAN" >
+| < DEGREES: "DEGREES" >
+| < RADIANS: "RADIANS" >
+| < PI: "PI" >
+}
+
+TOKEN : /* LITERALS */
+{
+  < INTEGER_LITERAL:
+        <DECIMAL_LITERAL> (["l","L"])?
+      | <HEX_LITERAL> (["l","L"])?
+      | <OCTAL_LITERAL> (["l","L"])?
+  >
+|
+  < #DECIMAL_LITERAL: ["1"-"9"] (["0"-"9"])* >
+|
+  < #HEX_LITERAL: "0" ["x","X"] (["0"-"9","a"-"f","A"-"F"])+ >
+|
+  < #OCTAL_LITERAL: "0" (["0"-"7"])* >
+|
+  < FLOATING_POINT_LITERAL:
+        (["0"-"9"])+ "." (["0"-"9"])* (<EXPONENT>)? (["f","F","d","D"])?
+      | "." (["0"-"9"])+ (<EXPONENT>)? (["f","F","d","D"])?
+      | (["0"-"9"])+ <EXPONENT> (["f","F","d","D"])?
+      | (["0"-"9"])+ (<EXPONENT>)? ["f","F","d","D"]
+  >
+|
+  < #EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
+|
+  < STRING_LITERAL:
+     ( 
+      "\""
+      (   (~["\"","\\","\n","\r"])
+        | ("\\"
+            ( ["n","t","b","r","f","\\","'","\""]
+            | ["0"-"7"] ( ["0"-"7"] )?
+            | ["0"-"3"] ["0"-"7"] ["0"-"7"]
+            )
+          )
+      )*
+      "\""
+     )
+   | (
+      "'"
+      (   (~["\'","\\","\n","\r"])
+        | ("\\"
+            ( ["n","t","b","r","f","\\","'","\""]
+            | ["0"-"7"] ( ["0"-"7"] )?
+            | ["0"-"3"] ["0"-"7"] ["0"-"7"]
+            )
+          )
+      )*
+      "'"
+     )
+  >
+}
+
+TOKEN : /* IDENTIFIERS */
+{
+  < IDENTIFIER: <LETTER> (<LETTER>|<DIGIT>|"#")* >
+| < #LETTER:
+      [
+       "\u0024",
+       "\u0041"-"\u005a",
+       "\u005f",
+       "\u0061"-"\u007a",
+       "\u00c0"-"\u00d6",
+       "\u00d8"-"\u00f6",
+       "\u00f8"-"\u00ff",
+       "\u0100"-"\u1fff",
+       "\u3040"-"\u318f",
+       "\u3300"-"\u337f",
+       "\u3400"-"\u3d2d",
+       "\u4e00"-"\u9fff",
+       "\uf900"-"\ufaff"
+      ]
+  >
+|
+  < #DIGIT:
+      [
+       "\u0030"-"\u0039",
+       "\u0660"-"\u0669",
+       "\u06f0"-"\u06f9",
+       "\u0966"-"\u096f",
+       "\u09e6"-"\u09ef",
+       "\u0a66"-"\u0a6f",
+       "\u0ae6"-"\u0aef",
+       "\u0b66"-"\u0b6f",
+       "\u0be7"-"\u0bef",
+       "\u0c66"-"\u0c6f",
+       "\u0ce6"-"\u0cef",
+       "\u0d66"-"\u0d6f",
+       "\u0e50"-"\u0e59",
+       "\u0ed0"-"\u0ed9",
+       "\u1040"-"\u1049"
+      ]
+  >
+}
+
+TOKEN : /* SEPARATORS */
+{
+  < LPAREN: "(" >
+| < RPAREN: ")" >
+| < LBRACE: "{" >
+| < RBRACE: "}" >
+| < LBRACKET: "[" >
+| < RBRACKET: "]" >
+| < SEMICOLON: ";" >
+| < COMMA: "," >
+| < DOT: "." >
+| < PP: "++" >
+| < MM: "--" >
+}
+
+TOKEN : /* OPERATOR SYMBOLS */
+{
+  < ASSIGN: "=" >
+| < PEQ: "+=" >
+| < MEQ: "-=" >
+| < UEQ: "@=" >
+| < EQ: "==" >
+| < NEQ: "<>" >
+| < GT: ">" >
+| < LT: "<" >
+| < LE: "<=" >
+| < GE: ">=" >
+| < NE: "!=" >
+| < HOOK: "?" >
+| < COLON: ":" >
+| < PLUS: "+" >
+| < SUBT: "-" >
+| < STAR: "*" >
+| < SLASH: "/" >
+| < REM: "%" >
+}
+
+/***********************************************
+ *          THE GRAMMAR STARTS HERE            *
+ ***********************************************/
+
+ASTCode code() #Code :
+{}
+{
+     			      statement() ( statement() )* <EOF>  {return jjtThis;}
+}
+
+void statement() #Statement :
+{}
+{
+				 	LOOKAHEAD(2) assignment()
+				|   LOOKAHEAD(3) arraydef()
+				| 	LOOKAHEAD(3) arrayassign() 
+				|	fndef()
+				|	block()
+				|	ifstatement()	
+				|	forloop()
+				| 	whileloop()
+				|	print()
+				|	call()
+				|	terminate()  
+}
+
+void arraydef() #ArrayDefine :
+{}
+{
+					identifier() <LBRACKET> <RBRACKET> <ASSIGN> arrayparamlist() 
+}
+
+void arrayparamlist() #ArrayParamList :
+{}
+{
+					<LBRACKET> [ expression()  ( <COMMA> expression()   )* ] <RBRACKET>
+}
+
+void arrayassign():
+{}
+{
+  					identifier() <LBRACKET> expression()  <RBRACKET> <ASSIGN> expression() #ArrayAssignment(3)
+}
+
+void print() :
+{}
+{
+					<PRINT> <LPAREN> expression() <RPAREN> #Print(1)
+}
+
+void terminate() #Exit :
+{}
+{
+					<EXIT>
+}
+
+void block() #Block :
+{}
+{
+					<LBRACE> ( statement() )* <RBRACE>
+}
+
+void parmlist() #Parmlist :
+{}
+{
+					<LPAREN> [ identifier() ( <COMMA> identifier() )* ] <RPAREN>
+}
+
+void fnbody() #FnBody :
+{}
+{
+					( statement() )* 
+}
+
+void fndef() #FnDef :
+{}
+{
+					<FN> identifier() parmlist() <LBRACE> 
+						fnbody()
+						[ <RETURN> returnexpr() {jjtThis.fnHasReturn = true;} ] 
+					<RBRACE>
+}
+
+void returnexpr() #ReturnExpression :
+{}
+{
+					expression()
+}
+
+void assignment() :
+{}
+{
+					identifier() <ASSIGN> expression() #Assignment(2)
+}
+
+void ifstatement() #IfStatement :
+{}
+{
+  					<IF> <LPAREN> expression() <RPAREN> statement() 
+  					[ LOOKAHEAD(1) <ELSE> statement() {jjtThis.ifHasElse = true;} ]
+}
+
+void whileloop() #WhileLoop :
+{}
+{
+  					<WHILE> <LPAREN> expression() <RPAREN> statement()
+}
+
+void forloop() #ForLoop :
+{}
+{
+  					<FOR> <LPAREN> assignment() <SEMICOLON> expression() <SEMICOLON> assignment() <RPAREN> statement()
+}
+
+void call() #Call :
+{}
+{
+					identifier() arglist()
+}
+
+void arglist() #ArgList :
+{}
+{
+					<LPAREN> [ expression() ] ( <COMMA> expression() )* <RPAREN>
+}
+
+//
+// Expressions
+//
+
+void expression() :
+{}
+{
+                  or_expression()
+}
+
+void or_expression() : 
+{} 
+{ 
+			      and_expression() ( <OR> and_expression() #Or(2) )* 
+}
+
+void and_expression() : 
+{} 
+{ 
+			      compare_expression() ( <AND> compare_expression() #And(2) )*
+}
+
+void compare_expression() : 
+{} 
+{ 
+                              add_expression() [
+                                 <EQ>  add_expression() #CompEqual(2)
+                               | <NEQ> add_expression() #CompNequal(2)
+                               | <GE> add_expression() #CompGTE(2)
+                               | <LE> add_expression() #CompLTE(2)
+                               | <GT>  add_expression() #CompGT(2)
+                               | <LT>  add_expression() #CompLT(2)
+                               ]
+}
+
+void add_expression() : 
+{} 
+{
+                              mul_expression() (
+                                  <PLUS>  mul_expression() #Add(2)
+                                | <SUBT>  mul_expression() #Subtract(2)
+                              )*
+}
+
+void mul_expression() : 
+{} 
+{ 
+			      			  unary_expression() ( 
+                                  <STAR> unary_expression() #Times(2)
+                                | <SLASH> unary_expression() #Divide(2)
+                              )*
+}
+
+void unary_expression() :
+{}
+{
+                              <NOT> unary_expression() #UnaryNot(1)
+                            | <PLUS>   unary_expression() #UnaryPlus(1)
+                            | <SUBT>   unary_expression() #UnaryMinus(1)
+                            | primary_expression()
+}
+
+void primary_expression() : 
+{}
+{
+                              literal()
+                            | LOOKAHEAD(2) fn_invoke()
+                            | LOOKAHEAD(2) array_invoke()
+                            | dereference()
+                            | <LPAREN> expression() <RPAREN>
+							|	sqrt()
+							|	ceil() 
+							|	floor() 
+							|	absVal() 
+							|	factorial() 
+							|	power() 
+							|	sine() 
+							|	cosine() 
+							|	tangent() 
+							|	degrees() 
+							|	radians()  
+							|	pi()  
+}
+
+void fn_invoke() #FnInvoke :
+{}
+{
+							identifier() arglist()
+}
+
+void array_invoke() #ArrayInvoke :
+{}
+{
+					identifier() <LBRACKET> integer() <RBRACKET>
+}
+
+void literal() :
+{}
+{
+							  integer()
+                            | character()							  	
+							| rational()
+							| bool()
+}
+
+void identifier() #Identifier :
+{Token t;}
+{
+	t = <IDENTIFIER> {jjtThis.tokenValue = t.image;}
+}
+
+void dereference() #Dereference :
+{Token t;}
+{
+	t = <IDENTIFIER> {jjtThis.tokenValue = t.image;}
+}
+
+void character() #Character :
+{Token t;}
+{
+	t = <STRING_LITERAL> {jjtThis.tokenValue = t.image;}
+}
+
+void integer() #Integer : 
+{Token t;} 
+{ 
+	t = <INTEGER_LITERAL> {jjtThis.tokenValue = t.image;}
+}
+
+void rational() #Rational : 
+{Token t;} 
+{ 
+	t = <FLOATING_POINT_LITERAL> {jjtThis.tokenValue = t.image;}
+}
+
+void bool() : 
+{} 
+{ 
+			      <TRUE> #True
+                | <FALSE> #False
+}
+
+
+void sqrt() :
+{}
+{
+					<SQRT> <LPAREN> expression() <RPAREN> #SquareRoot(1)
+}
+
+void ceil() :
+{}
+{
+					<CEIL> <LPAREN> expression() <RPAREN> #Ceil(1)
+}
+
+void absVal() :
+{}
+{
+					<ABS> <LPAREN> expression() <RPAREN> #AbsoluteValue(1)
+}
+
+void factorial() :
+{}
+{
+					<FACTORIAL> <LPAREN> expression() <RPAREN> #Factorial(1)
+}
+
+void floor() :
+{}
+{
+					<FLOOR> <LPAREN> expression() <RPAREN> #Floor(1)
+}
+
+void power() :
+{}
+{
+					<POWER> <LPAREN> expression() <RPAREN> #Power(2)
+}
+
+void sine() :
+{}
+{
+					<SINE> <LPAREN> expression() <RPAREN> #Sine(1)
+}
+
+void cosine() :
+{}
+{
+					<COSINE> <LPAREN> expression() <RPAREN> #Cosine(1)
+}
+
+void tangent() :
+{}
+{
+					<TANGENT> <LPAREN> expression() <RPAREN> #Tangent(1)
+}
+
+void degrees() :
+{}
+{
+					<DEGREES> <LPAREN> expression() <RPAREN> #Degrees(1)
+}
+
+void radians() :
+{}
+{
+					<RADIANS> <LPAREN> expression() <RPAREN> #Radians(1)
+}
+
+void pi() #Pi :
+{}
+{
+					<PI> 
+}
+
+
+
+
+
+
+
+

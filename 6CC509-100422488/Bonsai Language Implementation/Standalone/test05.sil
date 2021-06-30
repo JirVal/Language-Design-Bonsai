@@ -1,0 +1,10 @@
+
+p = 3
+
+fn test(start, fin) {
+	for (i=start; i<=fin; i=i+1)
+		print(i)
+	print(p + 2)
+}
+
+test(5, 10)
